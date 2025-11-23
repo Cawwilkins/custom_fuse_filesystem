@@ -32,7 +32,8 @@ A high-level description of what this project does, and how it does it.
 ... and so forth
 
 ## Sources Used
-1. source one
-2. source two
-3. source three
-... and so forth
+1. https://github.com/libfuse/libfuse/blob/master/example/hello.c
+2. https://libfuse.github.io/doxygen/fuse_8h_source.html
+3. https://libfuse.github.io/doxygen/structfuse__operations.html#ac39a0b7125a0e5001eb5ff42e05faa5d
+4. https://man7.org/linux/man-pages/man3/stat.3type.html
+5. https://www.geeksforgeeks.org/software-engineering/bitwise-xor-operator-in-programming/
