@@ -9,38 +9,72 @@ typedef struct img {
 
 // TODO: fill out each of these!
 static struct fuse_operations simfs_operations = {
-  .init       = fs_init, // Check 1
-  .getattr    = fs_getattr, // Check 1
-  .readdir    = NULL, 	// Check 1
-  .read       = NULL,	 // Check 1
-  .open       = fs_open, // Check 1
-  .create     = NULL, // Check 2
-  .write      = NULL, // Final
-  .unlink     = NULL  // Final
-  // Saving image on unmount  // Final
+  .init       = fs_init,
+  .getattr    = fs_getattr,
+  .readdir    = NULL, 		// Checkpoint 2
+  .read       = fs_read,
+  .open       = fs_open,
+  .create     = NULL, 		// Checkpoint 2
+  .write      = NULL,  		// Final
+  .unlink     = NULL  		// Final
+  // Saving image on unmount    // Final
 };
 
 char* path_to_image = NULL;
 img_t* main_image = NULL;
 char* img_buffer = NULL;
 
+
+simfs_file_t helper_file_finder(const char *path){
+
+
 void *fs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 	ssize_t maxBytes = 271660; // From spec
 
+	// Open the image
 	int didOpen = open(path_to_image, 0_RDWR);
 	img_buffer = malloc(maxBytes);
 
+	// Read the file
 	read(didOpen, img_buffer, max_bytes);
 	close(didOpen);
 
+	// Cast as image and store file
 	main_image = (img_t*) img_buffer;
 }
 
-int *fs_getattr(const char *path, struct stat *stbuf, strcut fuse_file_info *fi){
-
+simfs_file_t helper_file_finder(const char *path){
 	char *fileName = NULL;
-	simfs_file_t *compareFile = NULL;
-	char xorName[25];
+        simfs_file_t *compareFile = NULL;
+        char xorName[25];
+
+	// Get rid of the slash
+        fileName = path + 1;
+        for (int i = 0; i < 256; i++) {
+        	compareFile = &main_image->files[i];
+
+                 // Check if file in use before xoring, name not defined yet
+                 if (compareFile->inuse == 0){
+     	         	continue;
+                 }
+
+                 // Loop through each index and xor to return to original name
+                 for (int j = 0; j < 24; j++) {
+                 	xorName[j] = compareFile->name[j] ^ magic_value;
+                 }
+                 xorName[24] = '\0';
+
+                 // Names match and file not in use
+                 if (strcmp(xorName, fileName) == 0){
+			return compareFile;
+		}
+	}
+	return NULL;
+}
+
+
+int *fs_getattr(const char *path, struct stat *stbuf, strcut fuse_file_info *fi) {
+	simfs_file_t *filePtr = NULL;
 
 	// Set Stat
 	stbuf->st_dev = 0;
@@ -55,39 +89,60 @@ int *fs_getattr(const char *path, struct stat *stbuf, strcut fuse_file_info *fi)
 	stbuf->st_blocks = 0;
 
 	// Directory
-	if (strcmp(path,"/") == 0) {		// does this need to be more robust like cd /asdf/asdf/adfs (multi slash)
+	if (strcmp(path,"/") == 0) {
 		stbuf->st_mode = S_IFDIR;
 		stbuf->st_nlink = 2;
 		return 0;
 	// File
 	} else {
-		// Get rid of the slash
-		fileName = path + 1;
-		for (int i = 0; i < 256; i++) {
-			compareFile = &main_image->files[i];
-
-			// Check if file in use before xoring, name not defined yet
-			if (compareFile->inuse == 0){
-				continue;
-			}
-
-			// Loop through each index and xor to return to original name
-			for (int j = 0; j < 24; j++) {
-				xorName[j] = compareFile->name[j] ^ magic_value;
-			}
-			xorName[24] = '\0';
-
-			// Names match and file not in use
-			if (stcmp(xorName, fileName) == 0) {
-				stbuf->st_mode = S_IFREG;
-				stbuf->st_nlink = 1;
-				stbuf->st_size = ntohs(compareFile->data_bytes);
-				return 0;
-			}
+		// Names match and file not in use
+		filePtr = helper_file_finder(path);
+		if (filePtr != NULL) {
+			stbuf->st_mode = S_IFREG;
+			stbuf->st_nlink = 1;
+			stbuf->st_size = ntohs(compareFile->data_bytes);
+			return 0;
 		}
 		return 1;
 	}
 	return 1;
+}
+
+//int *fs_readdir(const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info *, enum fuse_readdir_flags){
+
+int *fs_read(const char *path, char *buff, size_t size, off_t offset, struct fuse_file_info *){
+	simfs_file_t *filePtr = NULL;
+	int fileSize = 0;
+	int numCopy = 0;
+	int currentIndex = 0;
+
+	// Validation and finding file
+	if (strcmp(path, "/") == 0) {
+		return 0;
+	} else {
+		fileptr = helper_file_finder(path);
+		if (filePtr == NULL) {
+			return 0;
+		}
+	}
+
+	// Converting file size and calculating how much to move offset
+	file_size = ntohs(filePtr->data_bytes);
+	if (fileSize <= offset) {
+		return 0;
+	} else {
+		if (size < (fileSize - offset)) {
+			numCopy = size;
+		} else {
+			numCopy = fileSize - offset;
+		}
+		// Copy each index and translate it
+		for (int i = 0; i < num_copy; i++) {
+			currentIndex = offset + i;
+			buff[i] = filePtr->data[currentIndex] ^ magic_value;
+		}
+	}
+	return numCopy;
 }
 
 int *fs_open(const char *, struct fuse_file_info *){
