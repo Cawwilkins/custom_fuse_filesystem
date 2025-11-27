@@ -196,11 +196,11 @@ int *fs_open(const char *, struct fuse_file_info *){
 int* fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 	simfs_file_t *filePtr = NULL;
 	int i;
-	char xor_name[25];
-	char file_name[25]
+	char xor_name[24];
+	char file_name[24]
 
 	// To get rid of leading slash
-	if (path[0] = '/') {
+	if (path[0] == '/') {
 		file_name = path + 1;
 	} else {
 		file_name = path;
@@ -211,19 +211,23 @@ int* fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 	// No file with that name yet
 	if (filePtr == NULL) {
 		// Find first index where we can store files
-		while (&main_image->files[i] != NULL) {
+		while (&main_image->files[i]->inuse != 1) {
 			i++;
 		}
 
 		// Loop through each index and xor to return to original name
                 for (int j = 0; j < 24; j++) {
-		       // J + 1 because of leading /
-                       xorName[j] = path[j+1] ^ magic_value;
+                       xor_name[j] = file_name[j] ^ magic_value;
                 }
-                xorName[24] = '\0';
+                xor name[24] = '\0';
 
-		created_file = &main_image->files[i];
-		
+		simfs_file_t created_file = &main_image->files[i];
+		created_file->name = xor_name;
+		created_file->inuse = 1;
+		created_file->uid = 
+
+Need to set uid, gid, and date stuff - date is very particular from specs
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 return 0;
         }
         return 1;
