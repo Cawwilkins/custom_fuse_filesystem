@@ -11,7 +11,7 @@ typedef struct img {
 static struct fuse_operations simfs_operations = {
   .init       = fs_init,
   .getattr    = fs_getattr,
-  .readdir    = NULL, 		// Checkpoint 2
+  .readdir    = fs_readdir,
   .read       = fs_read,
   .open       = fs_open,
   .create     = NULL, 		// Checkpoint 2
@@ -108,9 +108,53 @@ int *fs_getattr(const char *path, struct stat *stbuf, strcut fuse_file_info *fi)
 	return 1;
 }
 
-//int *fs_readdir(const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info *, enum fuse_readdir_flags){
+int *fs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *, enum fuse_readdir_flags) {
+        char xorName[25];
 
-int *fs_read(const char *path, char *buff, size_t size, off_t offset, struct fuse_file_info *){
+	// Make sure it is just a path command
+	if (strcmp(path, "/") != 0) {
+                return 0;
+        }
+
+	filler(buffer, ".",  NULL, 0, 0);
+	filler(buffer, "..", NULL, 0, 0);
+
+        // Loop through each file
+        for (int i = 0; i < 256; i++) {
+                 simfs_file_t *compareFile = &main_image->files[i];
+
+                 // Check if file in use before xoring, name not defined yet
+                 if (compareFile->inuse == 0){
+                        continue;
+                 }
+
+		 // Set attributes of file
+                 struct stat* std_buff;
+	         std_buff->st_dev = 0;
+        	 std_buff->st_ino = 0;
+        	 std_buff->st_nlink = 0;
+        	 std_buff->st_rdev = 0;
+        	 std_buff->st_blksize = 0;
+        	 std_buff->st_blocks = 0;
+                 std_buff->st_uid = compareFile->uid;
+                 std_buff->st_gid = compareFile->gid;
+                 std_buff->st_size = ntohs(compareFile->data_bytes);
+                 std_buff->st_mode = S_IFREG;
+
+
+                 // Loop through each index and xor to return to original name
+                 for (int j = 0; j < 24; j++) {
+                        xorName[j] = compareFile->name[j] ^ magic_value;
+                 }
+                 xorName[24] = '\0';
+
+                 filler(buffer, xorName, &std_buff, 0, 0);
+        }
+        return 0;
+}
+
+
+int *fs_read(const char *path, char *buff, size_t size, off_t offset, struct fuse_file_info *file_info){
 	simfs_file_t *filePtr = NULL;
 	int fileSize = 0;
 	int numCopy = 0;
@@ -148,6 +192,44 @@ int *fs_read(const char *path, char *buff, size_t size, off_t offset, struct fus
 int *fs_open(const char *, struct fuse_file_info *){
 	return 0;
 }
+
+int* fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
+	simfs_file_t *filePtr = NULL;
+	int i;
+	char xor_name[25];
+	char file_name[25]
+
+	// To get rid of leading slash
+	if (path[0] = '/') {
+		file_name = path + 1;
+	} else {
+		file_name = path;
+	}
+
+	filePtr = helper_file_finder(path);
+
+	// No file with that name yet
+	if (filePtr == NULL) {
+		// Find first index where we can store files
+		while (&main_image->files[i] != NULL) {
+			i++;
+		}
+
+		// Loop through each index and xor to return to original name
+                for (int j = 0; j < 24; j++) {
+		       // J + 1 because of leading /
+                       xorName[j] = path[j+1] ^ magic_value;
+                }
+                xorName[24] = '\0';
+
+		created_file = &main_image->files[i];
+		
+                return 0;
+        }
+        return 1;
+}
+
+
 
 
 /**

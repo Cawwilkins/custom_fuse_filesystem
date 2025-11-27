@@ -37,3 +37,4 @@ A high-level description of what this project does, and how it does it.
 3. https://libfuse.github.io/doxygen/structfuse__operations.html#ac39a0b7125a0e5001eb5ff42e05faa5d
 4. https://man7.org/linux/man-pages/man3/stat.3type.html
 5. https://www.geeksforgeeks.org/software-engineering/bitwise-xor-operator-in-programming/
+6. https://libfuse.github.io/doxygen/fuse_8h.html
