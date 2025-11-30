@@ -6,6 +6,11 @@ typedef struct img {
   simfs_superblock_t bsb;
 } img_t;
 
+static struct date_created {
+  unit16_t year;
+  unit8_t month;
+  unit8_t day;
+};
 
 // TODO: fill out each of these!
 static struct fuse_operations simfs_operations = {
@@ -14,11 +19,12 @@ static struct fuse_operations simfs_operations = {
   .readdir    = fs_readdir,
   .read       = fs_read,
   .open       = fs_open,
-  .create     = NULL, 		// Checkpoint 2
-  .write      = NULL,  		// Final
-  .unlink     = NULL  		// Final
+  .create     = fs_create,
+  .write      = fs_write,
+  .unlink     = fs_unlink,
   // Saving image on unmount    // Final
 };
+
 
 char* path_to_image = NULL;
 img_t* main_image = NULL;
@@ -224,17 +230,82 @@ int* fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 		simfs_file_t created_file = &main_image->files[i];
 		created_file->name = xor_name;
 		created_file->inuse = 1;
-		created_file->uid = 
-
-Need to set uid, gid, and date stuff - date is very particular from specs
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                return 0;
+		created_file->uid = getuid();
+		created_file->gid = getgid();
+		time_t now = time(NULL);
+		struct tm *t = localtime(&now);
+		created_file->date_created.year = t->tm_year + 1900;
+		created_file->date_created.month = t->tm_mon + 1;
+		created_file->date_created.day = t->tm_mday;
+		return 0;
         }
         return 1;
 }
 
 
+int *fs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *file_inf) {
+	simfs_file_t *filePtr = NULL;
 
+	// Validation and finding file
+	if (strcmp(path, "/") == 0) {
+                return 0;
+	}
+
+	// Append
+	if (file_inf->flags && O_APPEND) {
+		filePtr = helper_file_finder(path);
+		if (filePtr == NULL) {
+			return 0;
+		}
+		if (filePtr->dataBytes + size > 1024) {
+			return 0;
+		}
+		for (size_t i = 0; i < size; i ++) {
+			filePtr->data[filePtr->dataBytes + i] = buffer[i] ^ magic_value;
+		}
+		filePtr->dataBytes += size;
+
+	// Write
+	} else {
+		filePtr = helper_file_finder(path);
+                if (filePtr == NULL) {
+                        return 0;
+                }
+                if (offset + size > 1024) {
+                        return 0;
+                }
+                for (size_t i = 0; i < size; i ++) {
+                        filePtr->data[offset + i] = buffer[i] ^ magic_value;
+                }
+		filePtr->dataBytes = offset + size;
+	}
+
+	time_t now = time(NULL);
+        struct tm *t = localtime(&now);
+        filePtr->date_created.year = t->tm_year + 1900;
+        filePtr->date_created.month = t->tm_mon + 1;
+        filePtr->date_created.day = t->tm_mday;
+
+	return size;
+}
+
+
+int *fs_unlink(char *path){
+	simfs_file_t *filePtr = NULL;
+
+	if (strcmp(path, "/") == 0){
+		return 1;
+	}
+
+	filePtr = helper_file_finder(path);
+	if (filePtr == NULL){
+		return -ENOENT;
+	}
+
+	filePtr->inuse = 0;
+	filePtr->data_bytes = 0;
+	return 0;
+}
 
 /**
  *  SimpleFS Main Loop. Objectives:

@@ -38,3 +38,5 @@ A high-level description of what this project does, and how it does it.
 4. https://man7.org/linux/man-pages/man3/stat.3type.html
 5. https://www.geeksforgeeks.org/software-engineering/bitwise-xor-operator-in-programming/
 6. https://libfuse.github.io/doxygen/fuse_8h.html
+7. https://www.w3schools.com/c/c_date_time.php
+8. https://stackoverflow.com/questions/18079449/is-there-a-system-call-for-obtaining-the-uid-gid-of-a-running-process
