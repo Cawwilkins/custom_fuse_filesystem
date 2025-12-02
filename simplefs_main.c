@@ -1,5 +1,6 @@
 #include "proj5structs.h"
 #include <errno.h>
+#include <limits.h>
 
 typedef struct img {
   simfs_superblock_t msb;
@@ -10,16 +11,17 @@ typedef struct img {
 char* path_to_image = NULL;
 img_t* main_image = NULL;
 char* img_buffer = NULL;
-uint16_t magic_value;
+uint16_t magic_value = 0;
 
 simfs_file_t *helper_file_finder(const char *path){
 	printf("helper_file_finder called \n");
 	char fileName[24];
         simfs_file_t *compareFile = NULL;
-        char xorName[24];
-	int j = 0;
+        char fixedName[24];
 
+	// empty fileName
 	memset(fileName, 0, 24);
+	memset(fixedName, 0, 24);
 
 	// To get rid of leading slash
         if (path[0] == '/') {
@@ -29,8 +31,9 @@ simfs_file_t *helper_file_finder(const char *path){
         }
         fileName[23] ='\0';
 
-	printf("given filename: %s\n", fileName);
+	printf("helper finder - given filename: %s\n", fileName);
         for (int i = 0; i < 256; i++) {
+		 memset(fixedName, 1, 24);
         	 compareFile = &main_image->files[i];
 
                  // Check if file in use before xoring, name not defined yet
@@ -38,17 +41,21 @@ simfs_file_t *helper_file_finder(const char *path){
      	         	continue;
                  }
 
-		 printf("comparfile name is: %s \n", compareFile->name);
+		 printf("helper finder - compare file name is: %s \n", compareFile->name);
                  // Loop through each index and xor to return to original name
-                 for (int j = 0; j < 23 && compareFile->name[j] != '\0'; j++) {
-                 	xorName[j] = compareFile->name[j] ^ main_image->msb.magic;
-                 }
-                 xorName[j] = '\0';
+                 for (int j = 0; j < 23; j++) {
+                	if (compareFile->name[j] == '\0') {
+				fixedName[j] = '\0';
+				break;
+			}
+			fixedName[j] = compareFile->name[j] ^ magic_value;
+			printf("helper - fixedname[j] = %c\n", fixedName[j]);
+		 }
 
                  // Names match and file not in use
-		 printf("xor name %s, fileName %s\n", xorName, fileName);
-                 if (strcmp(xorName, fileName) == 0){
-			printf("helper finder - names match and not in use\n");
+		 printf("helper - fixed name: %s, original fileName %s\n", fixedName, fileName);
+                 if (strcmp(fixedName, fileName) == 0){
+			printf("helper finder - Found!\n");
 			return compareFile;
 		}
 	}
@@ -241,17 +248,20 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 	int i = 0;
 	char xor_name[24];
 	char file_name[24];
+	int counter = 0;
 
 	printf("fs_create\n");
 	// Mark what won't be used
 	(void)mode;
 	(void)file_info;
 
+	memset(xor_name, 0, 24);
+
 	// To get rid of leading slash and set file name
 	if (path[0] == '/') {
-		strncpy(file_name, path + 1, 24);
+		strncpy(file_name, path + 1, 23);
 	} else {
-		strncpy(file_name, path, 24);
+		strncpy(file_name, path, 23);
 	}
 	file_name[23] ='\0';
 
@@ -269,24 +279,27 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 		if (i == 256) {
 			return -ENOENT;
 		}
+		printf("create - index is: %d\n", i);
 
 		// Loop through each index and xor to encode original name
-                for (int j = 0; j < 24; j++) {
-                       xor_name[j] = file_name[j] ^ main_image->msb.magic;
+                for (int j = 0; j < 23; j++) {
+			counter += 1;
+			if (file_name[j] == '\0') {
+				xor_name[j] = '\0';
+				break;
+			}
+			xor_name[j] = file_name[j] ^ magic_value;
+			printf("create - xorname[j] = %c\n", xor_name[j]);
                 }
-                xor_name[24] = '\0';
-		printf("create file - magic value is %d\n", magic_value);
-		printf("create file - xor name %s filename %s \n", xor_name, file_name);
+		printf("counter is: %d", counter);
+		printf("is xor still here? xor[0] = %c", xor_name[0]);
 
 		// Create a pointer to location of first place without file
 		simfs_file_t *created_file = &main_image->files[i];
 
 		// Set attributes of file
-		memcpy(created_file->name, xor_name, 24);
-		printf("xor name: ");
-		for (int c = 0; c < 24; c++){
-			printf("%c", xor_name[c]);
-		}
+		memcpy(created_file->name, xor_name, counter);
+		printf("create - xor name: %s\n", created_file->name);
 		created_file->inuse = 1;
 		created_file->uid = getuid();
 		created_file->gid = getgid();
@@ -407,7 +420,14 @@ int main(int argc, char* argv[]) {
 	if (argv[1] == NULL) {
 		return 1;
 	}
-	path_to_image = argv[1];
+
+	char resolved_path[PATH_MAX];
+	if (realpath(argv[1], resolved_path) == NULL) {
+		perror("realpath");
+		return 1;
+	}
+	//path_to_image = argv[1];
+	path_to_image = strdup(resolved_path);
 
   // FUSE doesnt care about the filesystem image.
   // hence, knowing that the first argument isnt valid we skip over it.
