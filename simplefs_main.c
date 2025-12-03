@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <limits.h>
 
-typedef struct img {
+typedef struct __attribute__((packed)) img {
   simfs_superblock_t msb;
   simfs_file_t files[256];
   simfs_superblock_t bsb;
@@ -105,7 +105,19 @@ void *fs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 	close(didOpen);
 
         // Cast as image and store file
-	main_image = (img_t*) &bytes;
+	//main_image = (img_t*) &bytes;
+
+	main_image = malloc(sizeof(img_t));
+	uint8_t *p = bytes;
+
+	memcpy(&main_image->msb, p, sizeof(simfs_superblock_t));
+	p+= sizeof(simfs_superblock_t);
+	memcpy(&main_image->files, p, sizeof(simfs_file_t) * 256);
+        p+= sizeof(simfs_file_t) * 256;
+	memcpy(&main_image->bsb, p, sizeof(simfs_superblock_t));
+	p+= sizeof(simfs_superblock_t);
+
+
 
 	magic_value = ntohs(main_image->msb.magic);
 	printf("magic_value %d", magic_value);
@@ -299,7 +311,10 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 
 	// Confirm that pointer is null (file doesnt exist)
 	filePtr = helper_file_finder(path);
-
+	printf("helper just ran\n");
+	if (filePtr != NULL) {
+		printf("ptr wasnt null\n");
+	}
 	// No file yet so make one
 	if (filePtr == NULL) {
 		printf("create - no file exists so making one\n");
@@ -350,17 +365,23 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *file_info){
 		created_file->date_created[2] = htons(day);
 		printf("create - completed\n");
 
-		uint16_t temp1 = ntohs(main_image->msb.num_files) + 1;
+		uint16_t temp1 = ntohs(main_image->msb.num_files);
+		temp1 += 1;
 		main_image->msb.num_files = htons(temp1);
-		uint16_t temp2 = ntohs(main_image->msb.num_files) + 1;
-                main_image->msb.num_files = htons(temp2);
+
+		uint16_t temp2 = ntohs(main_image->bsb.num_files);
+		temp2 += 1;
+                main_image->bsb.num_files = htons(temp2);
+		printf("|-|-> .num_files => %d with ntohs\n", ntohs(main_image->msb.num_files));
+		printf("|-|-> .num_files => %d with ntohs\n", ntohs(main_image->bsb.num_files));
+		printf("|-|-> .num_files => %d %d without \n", temp1, temp2);
 		return 0;
 
         } else {
 		printf("create - already exists\n");
 		return -EEXIST;
 	}
-	printf("create - some error");
+	printf("create - some error\n");
         return -ENOENT;
 }
 
@@ -446,13 +467,17 @@ int fs_unlink(const char *path){
 
 	filePtr->inuse = 0;
 	filePtr->data_bytes = 0;
-	main_image->msb.num_files += 1;
-        main_image->bsb.num_files += 1;
-	uint16_t temp1 = ntohs(main_image->msb.num_files) - 1;
-        main_image->msb.num_files = htons(temp1);
-        uint16_t temp2 = ntohs(main_image->msb.num_files) - 1;
-        main_image->msb.num_files = htons(temp2);
 
+	uint16_t temp1 = ntohs(main_image->msb.num_files);
+	temp1 -= 1;
+        main_image->msb.num_files = htons(temp1);
+
+        uint16_t temp2 = ntohs(main_image->bsb.num_files);
+	temp2 -= 1;
+        main_image->bsb.num_files = htons(temp2);
+
+	printf("|-|-> msb.num_files => %d\n", ntohs(main_image->msb.num_files));
+	printf("|-|-> bsb.num_files => %d\n", ntohs(main_image->bsb.num_files));
 	return 0;
 }
 
