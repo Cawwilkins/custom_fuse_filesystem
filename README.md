@@ -1,8 +1,5 @@
-## Student Information
-- Name: Christian Wilkins
-- Email: cwilkin2@umbc.edu / va96371@umbc.edu
-- Student ID: VA96371
-- Class Section: 04-LEC (1410)
+## INFO
+This was a project for one of my classes that I chose to include in my portfolio. The below README is what I turned in. 
 
 
 ## Project Description
