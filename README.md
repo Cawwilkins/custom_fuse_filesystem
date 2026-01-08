@@ -1,5 +1,5 @@
 ## INFO
-This was a project for one of my classes that I chose to include in my portfolio. The below README is what I turned in. 
+This was a project for one of my classes that I chose to include in my portfolio. The below README is what I turned in. The parser and generator were made by our TA in order to help us test the filesystem.
 
 
 ## Project Description
